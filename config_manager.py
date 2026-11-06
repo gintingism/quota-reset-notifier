@@ -42,6 +42,21 @@ class SyncRelayConfig:
 
 
 @dataclass
+class NotificationConfig:
+    enabled: bool = False
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    discord_webhook_url: str = ""
+    weekly_reminders: bool = True
+    visible_hello: bool = True
+    provider_hello_endpoints: dict[str, str] = field(default_factory=dict)
+    provider_hello_timeout_sec: float = 10.0
+    stale_after_sec: int = 900
+    retry_attempts: int = 3
+    retry_backoff_sec: float = 1.0
+
+
+@dataclass
 class AppConfig:
     theme: str = "dark"
     accent_color: str = "#7C3AED"
@@ -61,6 +76,7 @@ class AppConfig:
     antigravity: AntigravityConfig = field(default_factory=AntigravityConfig)
     github_copilot: GitHubCopilotConfig = field(default_factory=GitHubCopilotConfig)
     sync_relay: SyncRelayConfig = field(default_factory=SyncRelayConfig)
+    notifications: NotificationConfig = field(default_factory=NotificationConfig)
 
 
 class ConfigManager:
@@ -121,7 +137,12 @@ class ConfigManager:
         for key in scalar_fields:
             if key in values:
                 setattr(config, key, values[key])
-        for key, target in (("antigravity", config.antigravity), ("github_copilot", config.github_copilot)):
+        for key, target in (
+            ("antigravity", config.antigravity),
+            ("github_copilot", config.github_copilot),
+            ("sync_relay", config.sync_relay),
+            ("notifications", config.notifications),
+        ):
             nested = values.get(key)
             if isinstance(nested, dict):
                 for field_name in asdict(target):
@@ -161,6 +182,30 @@ class ConfigManager:
         config.sync_relay.enabled = bool(config.sync_relay.enabled)
         config.sync_relay.interval_sec = min(
             3600, max(60, ConfigManager._integer(config.sync_relay.interval_sec, 300))
+        )
+        config.notifications.enabled = bool(config.notifications.enabled)
+        config.notifications.weekly_reminders = bool(config.notifications.weekly_reminders)
+        config.notifications.stale_after_sec = min(
+            86400, max(60, ConfigManager._integer(config.notifications.stale_after_sec, 900))
+        )
+        config.notifications.retry_attempts = min(
+            8, max(1, ConfigManager._integer(config.notifications.retry_attempts, 3))
+        )
+        config.notifications.retry_backoff_sec = min(
+            60.0, max(0.0, ConfigManager._number(config.notifications.retry_backoff_sec, 1.0))
+        )
+        config.notifications.visible_hello = bool(config.notifications.visible_hello)
+        if not isinstance(config.notifications.provider_hello_endpoints, dict):
+            config.notifications.provider_hello_endpoints = {}
+        config.notifications.provider_hello_endpoints = {
+            str(provider).strip(): str(endpoint).strip()
+            for provider, endpoint in config.notifications.provider_hello_endpoints.items()
+            if str(provider).strip() and isinstance(endpoint, str) and endpoint.strip()
+        }
+        config.notifications.provider_hello_timeout_sec = min(
+            30.0, max(1.0, ConfigManager._number(
+                config.notifications.provider_hello_timeout_sec, 10.0
+            ))
         )
 
     @staticmethod

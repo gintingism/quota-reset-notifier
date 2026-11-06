@@ -27,6 +27,7 @@ class ProviderSnapshot:
     fetched_at: float = 0.0
     source: str = "local"
     error: str | None = None
+    estimated: bool = False
 
 
 @dataclass(frozen=True)

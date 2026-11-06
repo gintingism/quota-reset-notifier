@@ -34,6 +34,7 @@ def state_payload(state: AggregatedQuotaState) -> dict[str, Any]:
             "fetched_at": snapshot.fetched_at,
             "source": snapshot.source,
             "error": snapshot.error,
+            "estimated": snapshot.estimated,
         }
     return {"version": 1, "fetched_at": state.fetched_at, "providers": providers}
 

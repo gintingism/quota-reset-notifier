@@ -7,3 +7,4 @@ dist/
 build/
 *.spec
 ai_quota_widget.ico
+quota_reset_notifier.ico

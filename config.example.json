@@ -34,5 +34,18 @@
     "base_url": "",
     "auth_token": "",
     "interval_sec": 300
+  },
+  "notifications": {
+    "enabled": false,
+    "telegram_bot_token": "",
+    "telegram_chat_id": "",
+    "discord_webhook_url": "",
+    "weekly_reminders": true,
+    "visible_hello": true,
+    "provider_hello_endpoints": {},
+    "provider_hello_timeout_sec": 10.0,
+    "stale_after_sec": 900,
+    "retry_attempts": 3,
+    "retry_backoff_sec": 1.0
   }
 }

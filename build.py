@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parent
-ICON_PATH = ROOT / "ai_quota_widget.ico"
+ICON_PATH = ROOT / "quota_reset_notifier.ico"
 
 
 def create_icon() -> None:
@@ -26,14 +26,14 @@ def main() -> None:
     command = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm", "--clean", "--onefile", "--noconsole",
-        "--name", "AIQuotaWidget", "--icon", str(ICON_PATH),
+        "--name", "QuotaResetNotifier", "--icon", str(ICON_PATH),
         "--collect-all", "customtkinter",
         "--collect-all", "pystray",
         "--hidden-import", "PIL._tkinter_finder",
         str(ROOT / "main.py"),
     ]
     subprocess.run(command, cwd=ROOT, check=True)
-    print("Built:", ROOT / "dist" / "AIQuotaWidget.exe")
+    print("Built:", ROOT / "dist" / "QuotaResetNotifier.exe")
 
 
 if __name__ == "__main__":

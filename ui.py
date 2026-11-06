@@ -7,10 +7,12 @@ from ctypes import wintypes
 from datetime import datetime
 from tkinter import colorchooser, messagebox
 from typing import Callable
+from urllib.parse import urlparse
 
 import customtkinter as ctk
 
 from config_manager import AppConfig, ConfigManager
+from notifications import WeeklyQuotaReminder
 from quota_fetcher import AggregatedQuotaState, ProviderSnapshot, QuotaFetcher
 from timer_engine import TimerEngine
 
@@ -45,7 +47,7 @@ class SettingsWindow(ctk.CTkToplevel):
                  on_save: Callable[[], None], focus_provider: str | None = None) -> None:
         super().__init__(parent)
         self.config, self.on_save = config, on_save
-        self.title("AI Quota Settings")
+        self.title("Quota Reset Notifier Settings")
         self.geometry("680x760")
         self.resizable(False, False)
         self.transient(parent)
@@ -100,6 +102,53 @@ class SettingsWindow(ctk.CTkToplevel):
         self.gh_interval = self._field(frame, "GitHub refresh interval (60-3600 sec)",
                                        str(self.config.github_copilot.refresh_interval_sec), False,
                                        "300")
+        self._section_label(frame, "Weekly notifications")
+        ctk.CTkLabel(
+            frame,
+            text="Sources are best-effort: Copilot uses an undocumented internal endpoint; "
+                 "Antigravity uses the configured/local usage source.",
+            text_color=COLORS["muted"],
+            wraplength=600,
+            justify="left",
+        ).pack(anchor="w", padx=8, pady=(0, 6))
+        notifications = self.config.notifications
+        self.notifications_enabled = ctk.BooleanVar(value=notifications.enabled)
+        ctk.CTkCheckBox(
+            frame, text="Enable Telegram/Discord weekly reminders",
+            variable=self.notifications_enabled,
+        ).pack(anchor="w", padx=8, pady=(4, 3))
+        self.weekly_reminders = ctk.BooleanVar(value=notifications.weekly_reminders)
+        ctk.CTkCheckBox(
+            frame, text="Enable weekly reset reminder processing",
+            variable=self.weekly_reminders,
+        ).pack(anchor="w", padx=8, pady=3)
+        self.visible_hello = ctk.BooleanVar(value=notifications.visible_hello)
+        ctk.CTkCheckBox(
+            frame, text="Send visible post-reset hello notification",
+            variable=self.visible_hello,
+        ).pack(anchor="w", padx=8, pady=3)
+        self.telegram_token = self._field(
+            frame, "Telegram bot token", notifications.telegram_bot_token, True,
+            "123456:bot-token",
+        )
+        self.telegram_chat_id = self._field(
+            frame, "Telegram chat ID", notifications.telegram_chat_id, False,
+            "chat id",
+        )
+        self.discord_webhook = self._field(
+            frame, "Discord webhook URL", notifications.discord_webhook_url, True,
+            "https://discord.com/api/webhooks/…",
+        )
+        self.copilot_hello_endpoint = self._field(
+            frame, "Optional GitHub Copilot post-reset hello endpoint (HTTPS)",
+            notifications.provider_hello_endpoints.get("github_copilot", ""),
+            False, "https://your-service.example/hooks/copilot",
+        )
+        self.antigravity_hello_endpoint = self._field(
+            frame, "Optional Antigravity post-reset hello endpoint (HTTPS)",
+            notifications.provider_hello_endpoints.get("antigravity", ""),
+            False, "https://your-service.example/hooks/antigravity",
+        )
         self._section_label(frame, "Reset schedule")
         self.reset_time = self._field(frame, "Fallback weekly reset time (HH:MM)",
                                       f"{self.config.weekly_reset_hour:02d}:{self.config.weekly_reset_minute:02d}",
@@ -144,8 +193,17 @@ class SettingsWindow(ctk.CTkToplevel):
         try:
             hour, minute = map(int, self.reset_time.get().strip().split(":"))
             ag_interval, gh_interval = int(self.ag_interval.get()), int(self.gh_interval.get())
+            provider_endpoints = (
+                self.copilot_hello_endpoint.get().strip(),
+                self.antigravity_hello_endpoint.get().strip(),
+            )
             if not (0 <= hour <= 23 and 0 <= minute <= 59
-                    and 60 <= ag_interval <= 3600 and 60 <= gh_interval <= 3600):
+                    and 60 <= ag_interval <= 3600 and 60 <= gh_interval <= 3600
+                    and all(
+                        not endpoint
+                        or (urlparse(endpoint).scheme == "https" and bool(urlparse(endpoint).netloc))
+                        for endpoint in provider_endpoints
+                    )):
                 raise ValueError
         except ValueError:
             messagebox.showerror("Invalid input",
@@ -160,6 +218,21 @@ class SettingsWindow(ctk.CTkToplevel):
         gh.enabled, gh.github_token = self.copilot_enabled.get(), self.gh_token.get().strip()
         gh.endpoint_url, gh.editor_version = self.gh_endpoint.get().strip(), self.gh_editor.get().strip()
         gh.refresh_interval_sec = gh_interval
+        notifications = self.config.notifications
+        notifications.enabled = self.notifications_enabled.get()
+        notifications.weekly_reminders = self.weekly_reminders.get()
+        notifications.visible_hello = self.visible_hello.get()
+        notifications.telegram_bot_token = self.telegram_token.get().strip()
+        notifications.telegram_chat_id = self.telegram_chat_id.get().strip()
+        notifications.discord_webhook_url = self.discord_webhook.get().strip()
+        notifications.provider_hello_endpoints = {
+            provider: endpoint
+            for provider, endpoint in {
+                "github_copilot": self.copilot_hello_endpoint.get().strip(),
+                "antigravity": self.antigravity_hello_endpoint.get().strip(),
+            }.items()
+            if endpoint
+        }
         self.config.weekly_reset_weekday = WEEKDAYS.index(self.weekday.get())
         self.config.weekly_reset_hour, self.config.weekly_reset_minute = hour, minute
         self.config.always_on_top = self.always_top.get()
@@ -174,7 +247,7 @@ class QuotaWidget(ctk.CTk):
         self.config, self.manager, self.on_exit = config, manager, on_exit
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
-        self.title("AI Quota")
+        self.title("Quota Reset Notifier")
         self.overrideredirect(True)
         self.attributes("-alpha", max(0.95, config.window_alpha))
         self.attributes("-topmost", config.always_on_top)
@@ -184,6 +257,7 @@ class QuotaWidget(ctk.CTk):
                                   config.weekly_reset_minute)
         self.expanded = False
         self.last_state = AggregatedQuotaState()
+        self.reminder = WeeklyQuotaReminder.from_config(config.notifications)
         self._fetcher_generation = 0
         self.fetcher = self._new_fetcher()
         self._drag_start: tuple[int, int] | None = None
@@ -417,6 +491,11 @@ class QuotaWidget(ctk.CTk):
 
     def apply_state(self, state: AggregatedQuotaState) -> None:
         self.last_state = state
+        try:
+            self.reminder.process(state)
+        except Exception:
+            # Notification delivery must not interrupt UI state updates.
+            pass
         ag = state.providers.get("antigravity", ProviderSnapshot("antigravity"))
         gh = state.providers.get("github_copilot", ProviderSnapshot("github_copilot"))
         if ag.rolling_reset_at:
@@ -563,6 +642,7 @@ class QuotaWidget(ctk.CTk):
     def _settings_saved(self) -> None:
         self.fetcher.stop()
         self._fetcher_generation += 1
+        self.reminder = WeeklyQuotaReminder.from_config(self.config.notifications)
         self.fetcher = self._new_fetcher()
         self.fetcher.start()
         self.attributes("-topmost", self.config.always_on_top)

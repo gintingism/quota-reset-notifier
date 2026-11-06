@@ -12,7 +12,8 @@ GitHub or Antigravity credentials.
     "github_copilot": {
       "quota_percent": 65,
       "reset_at": 1790812800,
-      "models": [{"name": "premium_interactions", "remaining_percent": 65}]
+      "models": [{"name": "premium_interactions", "remaining_percent": 65}],
+      "estimated": false
     }
   }
 }

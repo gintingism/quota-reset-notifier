@@ -27,7 +27,7 @@ class TrayIcon:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Exit", lambda: self.callbacks[4]()),
         )
-        self.icon = pystray.Icon("AIQuotaWidget", image, "AI Quota Widget", menu)
+        self.icon = pystray.Icon("QuotaResetNotifier", image, "Quota Reset Notifier", menu)
         self.icon.run()
 
     def stop(self) -> None:
