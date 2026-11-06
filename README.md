@@ -177,5 +177,11 @@ not provider credentials.
 
 ## License
 
-No license file is currently included in this repository. Check with the
-maintainers before reusing the code in another project.
+This project is licensed under the
+[GNU General Public License v3.0 or later](LICENSE).
+
+You may use, study, modify, and redistribute the project under the terms of
+that license. If you distribute a modified version, keep the license and
+source-availability requirements that apply to GPL-covered software.
+
+The dependencies listed in `requirements.txt` remain under their own licenses.
