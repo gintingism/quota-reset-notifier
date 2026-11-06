@@ -22,6 +22,11 @@ from quota_fetcher import COPILOT_USER_ENDPOINT, QuotaFetcher  # noqa: E402
 from provider_adapters import AntigravityUsageReader  # noqa: E402
 from quota_models import AggregatedQuotaState  # noqa: E402
 from sync_relay import state_payload  # noqa: E402
+from telegram_setup import (  # noqa: E402
+    TelegramSetupError,
+    configure_telegram,
+    find_chat_id,
+)
 from timer_engine import ROLLING_SECONDS, TimerEngine  # noqa: E402
 
 
@@ -64,6 +69,35 @@ class ConfigTests(unittest.TestCase):
             "github_copilot": "http://bad"
         })
         self.assertEqual(config.notifications.provider_hello_timeout_sec, 30)
+
+    def test_telegram_setup_finds_chat_and_enables_notifications(self) -> None:
+        responses = [
+            Mock(status_code=200, json=lambda: {
+                "ok": True,
+                "result": [{"update_id": 8, "message": {
+                    "chat": {"id": 123456, "first_name": "Test"}
+                }}],
+            }),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            manager = ConfigManager(Path(directory) / "config.json")
+            chat_id, label = find_chat_id(
+                "bot-token", request=Mock(side_effect=responses),
+                sleep=lambda _: None, now=Mock(side_effect=[0, 0, 0, 0]),
+            )
+            configure_telegram(
+                manager, "bot-token", chat_id, request=Mock(
+                    return_value=Mock(status_code=200, json=lambda: {"ok": True})
+                ),
+            )
+            config = manager.load()
+        self.assertEqual((chat_id, label), ("123456", "Test"))
+        self.assertTrue(config.notifications.enabled)
+        self.assertEqual(config.notifications.telegram_chat_id, "123456")
+
+    def test_telegram_setup_rejects_empty_token(self) -> None:
+        with self.assertRaises(TelegramSetupError):
+            find_chat_id("", wait_sec=1, sleep=lambda _: None)
 
 
 class TimerTests(unittest.TestCase):

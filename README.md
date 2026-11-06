@@ -106,6 +106,31 @@ Create a bot with [@BotFather](https://t.me/BotFather), start a conversation
 with it, then enter the bot token and destination chat ID in Settings. The app
 uses Telegram's `sendMessage` method and sends only the reminder text.
 
+If you do not want to open the desktop widget, use the local setup helper from
+PowerShell:
+
+```powershell
+python configure_telegram.py
+```
+
+The helper asks for the token through a hidden prompt, waits for a message from
+your Telegram destination, reads the chat ID through Telegram `getUpdates`,
+enables weekly reminders, saves the token and chat ID to the local config, and
+sends one connection test. It does not print the token or write it to the
+repository.
+
+Before running it:
+
+1. Open the bot in Telegram.
+2. Press **Start**.
+3. Send `hello` to the bot.
+4. Run `python configure_telegram.py`.
+
+The helper waits up to two minutes for the message. If the bot has an active
+webhook, Telegram may reject `getUpdates`; remove that webhook or configure the
+chat ID manually in Settings. Rotate a token if it was exposed in a chat,
+terminal history, screenshot, or log.
+
 ### Discord
 
 Create an incoming webhook for the target channel under the channel's
